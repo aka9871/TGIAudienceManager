@@ -99,8 +99,8 @@ Une application web moderne permettant de créer et gérer des assistants IA sp�
 
 ### **1. Cloner le Projet**
 ```bash
-git clone <repository-url>
-cd DocumentAiAssistant
+git clone https://github.com/aka9871/TGIAudienceManager.git
+cd TGIAudienceManager
 ```
 
 ### **2. Configuration Backend**

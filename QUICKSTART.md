@@ -13,8 +13,8 @@ git --version     # Git
 ### **2. Clonage et Configuration**
 ```bash
 # Cloner le projet
-git clone <repository-url>
-cd DocumentAiAssistant
+git clone https://github.com/aka9871/TGIAudienceManager.git
+cd TGIAudienceManager
 
 # Configuration des variables d'environnement
 cp .env.example .env
