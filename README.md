@@ -430,7 +430,7 @@ src/
 
 - **Documentation** : [DOCUMENTATION.md](./DOCUMENTATION.md)
 - **Issues** : GitHub Issues
-- **Email** : support@ddb-tgi.com
+- **Email** : ali.khedji@tribal.paris
 
 ## 📄 Licence
 
@@ -438,6 +438,6 @@ Ce projet est sous licence MIT. Voir le fichier [LICENSE](./LICENSE) pour plus d
 
 ---
 
-**Développé avec ❤️ par l'équipe DDB TGI**
+**Développé avec ❤️ par Ali Khedji pour l'équipe DDB TGI**
 
 *Plateforme d'analyse de données d'audience avec IA - Version 2.0.0*

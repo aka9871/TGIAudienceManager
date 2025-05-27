@@ -214,5 +214,8 @@ rm -rf venv node_modules backend/*.db
 - **Documentation** : [DOCUMENTATION.md](./DOCUMENTATION.md)
 - **README** : [README.md](./README.md)
 - **Issues** : GitHub Issues
+- **Email** : ali.khedji@tribal.paris
 
 **Bon usage de DDB TGI Audience Manager ! 🎉**
+
+*Développé avec ❤️ par Ali Khedji pour l'équipe DDB TGI*
