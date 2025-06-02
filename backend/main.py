@@ -39,15 +39,14 @@ def get_openai_client(api_key: str = None):
     if api_key in client_cache:
         return client_cache[api_key]
     
-    # Create new client
-    client = OpenAI(
-        api_key=api_key,
-        default_headers={"OpenAI-Beta": "assistants=v2"}
-    )
-    
-    # Cache the client
-    client_cache[api_key] = client
-    return client
+    # Create new client with simplified initialization
+    try:
+        client = OpenAI(api_key=api_key)
+        # Cache the client
+        client_cache[api_key] = client
+        return client
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating OpenAI client: {str(e)}")
 
 def get_api_key_from_header(x_openai_key: Optional[str] = Header(None)):
     """Extract API key from header or use default."""
