@@ -16,7 +16,8 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const navigationItems = [
+  // Base navigation items for all users
+  const baseNavigationItems = [
     {
       name: 'Dashboard',
       href: '/dashboard',
@@ -32,6 +33,10 @@ const Sidebar = () => {
       href: '/chat',
       icon: MessageCircleIcon,
     },
+  ];
+
+  // Admin-only navigation items
+  const adminNavigationItems = [
     {
       name: 'Analytics',
       href: '/analytics',
@@ -43,6 +48,11 @@ const Sidebar = () => {
       icon: SettingsIcon,
     },
   ];
+
+  // Combine navigation items based on user role
+  const navigationItems = user?.role === 'admin' 
+    ? [...baseNavigationItems, ...adminNavigationItems]
+    : baseNavigationItems;
 
   const handleLogout = () => {
     logout();
@@ -90,9 +100,16 @@ const Sidebar = () => {
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.username}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user?.username}
+              </p>
+              {user?.role === 'admin' && (
+                <span className="px-2 py-1 text-xs font-medium text-ddb-black bg-ddb-yellow rounded-full">
+                  Admin
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-500 truncate">
               {user?.email || 'Utilisateur'}
             </p>

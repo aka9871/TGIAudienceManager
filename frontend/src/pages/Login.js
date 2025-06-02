@@ -128,10 +128,20 @@ const Login = () => {
 
           {/* Demo credentials */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 mb-2">Identifiants de démonstration :</p>
-            <div className="text-sm space-y-1">
-              <p><span className="font-medium">Utilisateur :</span> admin</p>
-              <p><span className="font-medium">Mot de passe :</span> admin123</p>
+            <p className="text-sm text-gray-600 mb-3">Identifiants de démonstration :</p>
+            <div className="text-sm space-y-3">
+              <div className="p-3 bg-white rounded border border-ddb-yellow/20">
+                <p className="font-medium text-ddb-black mb-1">👑 Administrateur</p>
+                <p><span className="font-medium">Utilisateur :</span> admin</p>
+                <p><span className="font-medium">Mot de passe :</span> admin123</p>
+                <p className="text-xs text-gray-500 mt-1">Accès complet (Analytics + Settings)</p>
+              </div>
+              <div className="p-3 bg-white rounded border border-gray-200">
+                <p className="font-medium text-gray-700 mb-1">👤 Utilisateur</p>
+                <p><span className="font-medium">Utilisateur :</span> user</p>
+                <p><span className="font-medium">Mot de passe :</span> user123</p>
+                <p className="text-xs text-gray-500 mt-1">Accès limité (Dashboard, Assistants, Chat)</p>
+              </div>
             </div>
           </div>
         </div>

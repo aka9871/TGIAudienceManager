@@ -104,10 +104,18 @@ class DatabaseManager:
         except sqlite3.OperationalError:
             pass  # Column already exists
         
+        # Add role column to users table
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT "user"')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
         # Create default admin user if no users exist
         cursor.execute('SELECT COUNT(*) FROM users')
         if cursor.fetchone()[0] == 0:
-            self.create_user('admin', 'admin123', 'admin@ddb.com')
+            self.create_user('admin', 'admin123', 'admin@ddb.com', 'admin')
+            # Create a test user with regular role
+            self.create_user('user', 'user123', 'user@ddb.com', 'user')
         
         conn.commit()
         conn.close()
@@ -116,7 +124,7 @@ class DatabaseManager:
         """Hash password using SHA-256."""
         return hashlib.sha256(password.encode()).hexdigest()
     
-    def create_user(self, username: str, password: str, email: str = None) -> bool:
+    def create_user(self, username: str, password: str, email: str = None, role: str = "user") -> bool:
         """Create a new user."""
         try:
             conn = sqlite3.connect(self.db_path)
@@ -124,8 +132,8 @@ class DatabaseManager:
             
             password_hash = self.hash_password(password)
             cursor.execute(
-                'INSERT INTO users (username, password_hash, email) VALUES (?, ?, ?)',
-                (username, password_hash, email)
+                'INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, ?, ?)',
+                (username, password_hash, email, role)
             )
             
             conn.commit()
@@ -141,7 +149,7 @@ class DatabaseManager:
         
         password_hash = self.hash_password(password)
         cursor.execute(
-            'SELECT id, username, email FROM users WHERE username = ? AND password_hash = ?',
+            'SELECT id, username, email, role FROM users WHERE username = ? AND password_hash = ?',
             (username, password_hash)
         )
         
@@ -157,7 +165,8 @@ class DatabaseManager:
             user_data = {
                 'id': user[0],
                 'username': user[1],
-                'email': user[2]
+                'email': user[2],
+                'role': user[3] or 'user'
             }
         else:
             user_data = None

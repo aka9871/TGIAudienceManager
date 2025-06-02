@@ -101,6 +101,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: Optional[str]
+    role: Optional[str] = "user"
 
 class LoginResponse(BaseModel):
     user: UserResponse
@@ -139,6 +140,28 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         user_id: int = payload.get("user_id")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
+        return user_id
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+def verify_admin_role(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify token and check if user has admin role."""
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        # Get user from database to check role
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT role FROM users WHERE id = ?', (user_id,))
+        user = cursor.fetchone()
+        conn.close()
+        
+        if not user or user[0] != 'admin':
+            raise HTTPException(status_code=403, detail="Access denied. Admin role required.")
+        
         return user_id
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -577,8 +600,8 @@ async def get_dashboard_stats(user_id: int = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=f"Error fetching dashboard stats: {str(e)}")
 
 @app.get("/analytics/data")
-async def get_analytics_data(user_id: int = Depends(verify_token)):
-    """Get detailed analytics data including costs and token usage."""
+async def get_analytics_data(user_id: int = Depends(verify_admin_role)):
+    """Get detailed analytics data including costs and token usage. Admin only."""
     try:
         analytics = db.get_analytics_data(user_id)
         return analytics

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Sidebar from './components/Sidebar';
+import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './pages/Dashboard';
 import Assistants from './pages/Assistants';
 import CreateAssistant from './pages/CreateAssistant';
@@ -42,8 +43,16 @@ function AppContent() {
             <Route path="/assistants/create" element={<CreateAssistant />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/chat/:assistantId" element={<Chat />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/analytics" element={
+              <ProtectedRoute requireAdmin={true}>
+                <Analytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute requireAdmin={true}>
+                <Settings />
+              </ProtectedRoute>
+            } />
           </Routes>
         </main>
       </div>
