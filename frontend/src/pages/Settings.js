@@ -14,7 +14,9 @@ import {
   Plus as PlusIcon,
   Trash as TrashIcon,
   Play as PlayIcon,
-  Star as StarIcon
+  Star as StarIcon,
+  MessageSquare as MessageSquareIcon,
+  RotateCcw as RotateCcwIcon
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAssistant } from '../contexts/AssistantContext';
@@ -39,6 +41,14 @@ const Settings = () => {
     name: '',
     apiKey: ''
   });
+
+  // Universal prompt state
+  const [promptData, setPromptData] = useState({
+    prompt_content: '',
+    updated_at: ''
+  });
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptSaving, setPromptSaving] = useState(false);
 
   // Load projects from localStorage
   useEffect(() => {
@@ -258,6 +268,99 @@ const Settings = () => {
     }
   };
 
+  // Universal prompt functions
+  const loadUniversalPrompt = async () => {
+    if (user?.role !== 'admin') return;
+    
+    setPromptLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/settings/universal-prompt', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPromptData(data);
+      } else {
+        toast.error('Erreur lors du chargement du prompt');
+      }
+    } catch (error) {
+      toast.error('Erreur lors du chargement du prompt');
+    } finally {
+      setPromptLoading(false);
+    }
+  };
+
+  const saveUniversalPrompt = async () => {
+    setPromptSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/settings/universal-prompt', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt_content: promptData.prompt_content
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPromptData(data);
+        toast.success('Prompt universel mis à jour avec succès');
+      } else {
+        toast.error('Erreur lors de la sauvegarde du prompt');
+      }
+    } catch (error) {
+      toast.error('Erreur lors de la sauvegarde du prompt');
+    } finally {
+      setPromptSaving(false);
+    }
+  };
+
+  const resetUniversalPrompt = async () => {
+    if (!window.confirm('Êtes-vous sûr de vouloir réinitialiser le prompt universel aux valeurs par défaut ?')) {
+      return;
+    }
+
+    setPromptSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/settings/universal-prompt/reset', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        toast.success('Prompt universel réinitialisé');
+        // Reload the prompt
+        await loadUniversalPrompt();
+      } else {
+        toast.error('Erreur lors de la réinitialisation du prompt');
+      }
+    } catch (error) {
+      toast.error('Erreur lors de la réinitialisation du prompt');
+    } finally {
+      setPromptSaving(false);
+    }
+  };
+
+  // Load universal prompt when switching to prompt tab
+  useEffect(() => {
+    if (activeTab === 'prompt' && user?.role === 'admin') {
+      loadUniversalPrompt();
+    }
+  }, [activeTab, user?.role]);
+
   const TabButton = ({ id, label, icon: Icon }) => (
     <button
       onClick={() => setActiveTab(id)}
@@ -273,8 +376,8 @@ const Settings = () => {
   );
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-50">
-      <div className="p-8">
+    <div className="flex-1 overflow-y-auto bg-gray-50 h-screen">
+      <div className="p-8 pb-16">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
@@ -295,6 +398,9 @@ const Settings = () => {
             <div className="card p-4">
               <div className="space-y-2">
                 <TabButton id="projects" label="Projets OpenAI" icon={FolderIcon} />
+                {user?.role === 'admin' && (
+                  <TabButton id="prompt" label="Prompt Universel" icon={MessageSquareIcon} />
+                )}
                 <TabButton id="profile" label="Profil" icon={UserIcon} />
               </div>
             </div>
@@ -466,6 +572,103 @@ const Settings = () => {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'prompt' && user?.role === 'admin' && (
+              <div className="card">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <MessageSquareIcon className="w-6 h-6 text-ddb-yellow" />
+                    <h2 className="text-xl font-semibold text-ddb-black">Prompt Universel</h2>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={resetUniversalPrompt}
+                      disabled={promptSaving}
+                      className="btn-secondary flex items-center gap-2"
+                    >
+                      <RotateCcwIcon className="w-4 h-4" />
+                      Réinitialiser
+                    </button>
+                    <button
+                      onClick={saveUniversalPrompt}
+                      disabled={promptSaving || !promptData.prompt_content.trim()}
+                      className="btn-primary flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {promptSaving ? (
+                        <RefreshCwIcon className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <SaveIcon className="w-4 h-4" />
+                      )}
+                      {promptSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+                    </button>
+                  </div>
+                </div>
+
+                {promptLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <RefreshCwIcon className="w-8 h-8 text-ddb-yellow animate-spin" />
+                    <span className="ml-3 text-gray-600">Chargement du prompt...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full flex-shrink-0 mt-0.5">
+                          <span className="text-blue-600 text-sm font-bold">i</span>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-medium text-blue-900 mb-1">À propos du Prompt Universel</h3>
+                          <p className="text-sm text-blue-700 mb-2">
+                            Ce prompt est utilisé pour tous les nouveaux assistants créés. Il définit le comportement 
+                            et les instructions de base pour l'analyse de données TGI.
+                          </p>
+                          <p className="text-sm text-blue-700">
+                            <strong>Variable disponible :</strong> <code className="bg-blue-100 px-1 rounded">{'{theme}'}</code> - 
+                            sera remplacée par le thème sélectionné lors de la création de l'assistant.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Contenu du Prompt Universel
+                      </label>
+                      <textarea
+                        value={promptData.prompt_content}
+                        onChange={(e) => setPromptData({ ...promptData, prompt_content: e.target.value })}
+                        className="w-full h-96 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ddb-yellow focus:border-transparent resize-none font-mono text-sm"
+                        placeholder="Entrez le prompt universel pour tous les assistants..."
+                        disabled={promptSaving}
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        {promptData.prompt_content.length} caractères
+                        {promptData.updated_at && (
+                          <span className="ml-4">
+                            Dernière modification : {new Date(promptData.updated_at).toLocaleString('fr-FR')}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 rounded-full flex-shrink-0 mt-0.5">
+                          <span className="text-yellow-600 text-sm font-bold">⚠</span>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-medium text-yellow-900 mb-1">Important</h3>
+                          <p className="text-sm text-yellow-700">
+                            Les modifications du prompt universel ne s'appliquent qu'aux <strong>nouveaux assistants</strong>. 
+                            Les assistants existants conservent leur prompt d'origine.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

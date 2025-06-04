@@ -128,7 +128,55 @@ class ChatMessage(BaseModel):
     content: str
     timestamp: str
 
+class UniversalPromptRequest(BaseModel):
+    prompt_content: str
+
+class UniversalPromptResponse(BaseModel):
+    prompt_content: str
+    updated_at: str
+
 # Helper functions
+def get_universal_prompt(theme: str) -> str:
+    """Get universal prompt from database or return default."""
+    try:
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT prompt_content FROM universal_prompt WHERE id = 1')
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            # Replace {theme} placeholder in stored prompt
+            return result[0].replace('{theme}', theme)
+        else:
+            # Return default prompt if none stored
+            return get_default_prompt(theme)
+    except Exception:
+        # Fallback to default prompt on any error
+        return get_default_prompt(theme)
+
+def get_default_prompt(theme: str) -> str:
+    """Get the default universal prompt."""
+    return f"""Tu es un assistant expert en analyse de données sectorielles.
+Tu travailles à partir d'un fichier structuré (JSONL) avec toujours les mêmes champs, dont la signification est :
+"Interview" : caractéristique démographique ou comportementale (sexe, âge, opinion, etc.)
+"Segment" : segment étudié (par exemple : marque ou modèle de voiture, produit, catégorie, etc.)
+"Échantillon" : nombre de personnes interrogées
+"(000)" : valeur numérique représentant les milliers de personnes
+"% Vert" : pourcentage vertical au sein d'une catégorie
+"% Horz" : pourcentage horizontal
+"Indice" : indicateur clé : >100 = surreprésentation dans la population cible, <100 = sous-représentation
+
+Le thème du jeu de données à analyser est : {theme}.
+
+Ta mission :
+Analyser ces données pour répondre précisément à toute question sur le thème indiqué : profils, comportements, segments différenciants, tendances, etc.
+Identifier les segments surreprésentés ("Indice" > 100) et sous-représentés ("Indice" < 100), en illustrant toujours par les valeurs chiffrées pertinentes (indice, % Vert, etc.)
+Comparer des segments ou profils si demandé, synthétiser les points saillants, et structurer ta réponse avec : Synthèse, Détail chiffré et Tableau illustratif si pertinent.
+Toujours utiliser la signification exacte des champs ci-dessus pour interpréter les résultats.
+Si la question de l'utilisateur n'est pas claire, commence par demander une précision.
+Commence l'analyse dès la prochaine question utilisateur."""
+
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.datetime.utcnow() + datetime.timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
@@ -528,26 +576,8 @@ async def create_assistant(
             elif file.content_type == "text/plain" or file.filename.endswith('.txt'):
                 file_type = "TXT"
         
-        # Create universal prompt with the theme
-        universal_prompt = f"""Tu es un assistant expert en analyse de données sectorielles.
-Tu travailles à partir d'un fichier structuré (JSONL) avec toujours les mêmes champs, dont la signification est :
-"Interview" : caractéristique démographique ou comportementale (sexe, âge, opinion, etc.)
-"Segment" : segment étudié (par exemple : marque ou modèle de voiture, produit, catégorie, etc.)
-"Échantillon" : nombre de personnes interrogées
-"(000)" : valeur numérique représentant les milliers de personnes
-"% Vert" : pourcentage vertical au sein d'une catégorie
-"% Horz" : pourcentage horizontal
-"Indice" : indicateur clé : >100 = surreprésentation dans la population cible, <100 = sous-représentation
-
-Le thème du jeu de données à analyser est : {theme}.
-
-Ta mission :
-Analyser ces données pour répondre précisément à toute question sur le thème indiqué : profils, comportements, segments différenciants, tendances, etc.
-Identifier les segments surreprésentés ("Indice" > 100) et sous-représentés ("Indice" < 100), en illustrant toujours par les valeurs chiffrées pertinentes (indice, % Vert, etc.)
-Comparer des segments ou profils si demandé, synthétiser les points saillants, et structurer ta réponse avec : Synthèse, Détail chiffré et Tableau illustratif si pertinent.
-Toujours utiliser la signification exacte des champs ci-dessus pour interpréter les résultats.
-Si la question de l'utilisateur n'est pas claire, commence par demander une précision.
-Commence l'analyse dès la prochaine question utilisateur."""
+        # Get universal prompt (from database or default)
+        universal_prompt = get_universal_prompt(theme)
         
         # Create assistant with universal prompt
         assistant_id = create_openai_assistant(
@@ -657,6 +687,93 @@ async def get_analytics_data(user_id: int = Depends(verify_admin_role)):
         return analytics
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching analytics data: {str(e)}")
+
+@app.get("/settings/universal-prompt", response_model=UniversalPromptResponse)
+async def get_universal_prompt_setting(user_id: int = Depends(verify_admin_role)):
+    """Get current universal prompt. Admin only."""
+    try:
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        
+        # Create table if it doesn't exist
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS universal_prompt (
+                id INTEGER PRIMARY KEY,
+                prompt_content TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_by INTEGER
+            )
+        ''')
+        
+        cursor.execute('SELECT prompt_content, updated_at FROM universal_prompt WHERE id = 1')
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            return UniversalPromptResponse(
+                prompt_content=result[0],
+                updated_at=result[1]
+            )
+        else:
+            # Return default prompt if none stored
+            default_prompt = get_default_prompt("{theme}")
+            return UniversalPromptResponse(
+                prompt_content=default_prompt,
+                updated_at=""
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching universal prompt: {str(e)}")
+
+@app.put("/settings/universal-prompt", response_model=UniversalPromptResponse)
+async def update_universal_prompt(request: UniversalPromptRequest, user_id: int = Depends(verify_admin_role)):
+    """Update universal prompt. Admin only."""
+    try:
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        
+        # Create table if it doesn't exist
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS universal_prompt (
+                id INTEGER PRIMARY KEY,
+                prompt_content TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_by INTEGER
+            )
+        ''')
+        
+        # Insert or update the prompt
+        current_time = datetime.datetime.now().isoformat()
+        cursor.execute('''
+            INSERT OR REPLACE INTO universal_prompt (id, prompt_content, updated_at, updated_by)
+            VALUES (1, ?, ?, ?)
+        ''', (request.prompt_content, current_time, user_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return UniversalPromptResponse(
+            prompt_content=request.prompt_content,
+            updated_at=current_time
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating universal prompt: {str(e)}")
+
+@app.post("/settings/universal-prompt/reset")
+async def reset_universal_prompt(user_id: int = Depends(verify_admin_role)):
+    """Reset universal prompt to default. Admin only."""
+    try:
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        
+        # Delete the custom prompt to fall back to default
+        cursor.execute('DELETE FROM universal_prompt WHERE id = 1')
+        
+        conn.commit()
+        conn.close()
+        
+        return {"message": "Universal prompt reset to default successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error resetting universal prompt: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
