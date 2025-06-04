@@ -8,7 +8,9 @@ import {
   CheckCircle as CheckCircleIcon,
   AlertCircle as AlertCircleIcon,
   Loader as LoaderIcon,
-  Zap as ZapIcon
+  Zap as ZapIcon,
+  FileSpreadsheet as FileSpreadsheetIcon,
+  RefreshCw as RefreshCwIcon
 } from 'lucide-react';
 import { useAssistant } from '../contexts/AssistantContext';
 import toast from 'react-hot-toast';
@@ -26,10 +28,12 @@ const CreateAssistant = () => {
   });
   const [progress, setProgress] = useState({
     fileValidation: false,
+    excelConversion: false,
     vectorStore: false,
     assistantCreation: false,
     completed: false
   });
+  const [isExcelFile, setIsExcelFile] = useState(false);
 
   const themes = [
     'AUTOMOBILE',
@@ -57,14 +61,20 @@ const CreateAssistant = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type
-      const allowedTypes = ['application/json', 'text/plain'];
+      // Validate file type - now including Excel files
+      const allowedTypes = ['application/json', 'text/plain', 
+                           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                           'application/vnd.ms-excel'];
       const isJsonl = file.name.endsWith('.jsonl');
+      const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
       
-      if (!allowedTypes.includes(file.type) && !isJsonl) {
-        toast.error('Type de fichier non supporté. Utilisez JSON, JSONL ou TXT.');
+      if (!allowedTypes.includes(file.type) && !isJsonl && !isExcel) {
+        toast.error('Type de fichier non supporté. Utilisez JSON, JSONL, TXT, XLS ou XLSX.');
         return;
       }
+      
+      // Check if it's an Excel file
+      setIsExcelFile(isExcel);
       
       setFormData({
         ...formData,
@@ -121,11 +131,17 @@ const CreateAssistant = () => {
       setProgress(prev => ({ ...prev, fileValidation: true }));
       await simulateProgress(() => {}, 800);
 
-      // Step 2: Vector store creation
+      // Step 2: Excel conversion (if needed)
+      if (isExcelFile) {
+        setProgress(prev => ({ ...prev, excelConversion: true }));
+        await simulateProgress(() => {}, 2000); // Longer delay for conversion
+      }
+
+      // Step 3: Vector store creation
       setProgress(prev => ({ ...prev, vectorStore: true }));
       await simulateProgress(() => {}, 1500);
 
-      // Step 3: Assistant creation
+      // Step 4: Assistant creation
       setProgress(prev => ({ ...prev, assistantCreation: true }));
       
       const result = await createAssistant(formData, formData.file);
@@ -145,6 +161,7 @@ const CreateAssistant = () => {
       setStep(2); // Return to file selection
       setProgress({
         fileValidation: false,
+        excelConversion: false,
         vectorStore: false,
         assistantCreation: false,
         completed: false
@@ -319,32 +336,52 @@ const CreateAssistant = () => {
                     <input
                       type="file"
                       onChange={handleFileChange}
-                      accept=".json,.jsonl,.txt"
+                      accept=".json,.jsonl,.txt,.xlsx,.xls"
                       className="hidden"
                       id="file-upload"
                     />
                     <label htmlFor="file-upload" className="cursor-pointer">
-                      <FileTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      {isExcelFile ? (
+                        <FileSpreadsheetIcon className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                      ) : (
+                        <FileTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      )}
                       <p className="text-lg font-medium text-gray-700 mb-2">
                         Cliquez pour sélectionner un fichier
                       </p>
                       <p className="text-sm text-gray-500">
-                        Formats supportés : JSON, JSONL, TXT
+                        Formats supportés : JSON, JSONL, TXT, XLS, XLSX
                       </p>
                     </label>
                   </div>
 
                   {formData.file && (
-                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircleIcon className="w-5 h-5 text-green-600" />
-                        <div>
-                          <p className="font-medium text-green-900">{formData.file.name}</p>
-                          <p className="text-sm text-green-700">
-                            {(formData.file.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
+                    <div className="mt-4 space-y-3">
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <CheckCircleIcon className="w-5 h-5 text-green-600" />
+                          <div>
+                            <p className="font-medium text-green-900">{formData.file.name}</p>
+                            <p className="text-sm text-green-700">
+                              {(formData.file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
                         </div>
                       </div>
+                      
+                      {isExcelFile && (
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <FileSpreadsheetIcon className="w-5 h-5 text-blue-600" />
+                            <div>
+                              <p className="font-medium text-blue-900">Fichier Excel détecté</p>
+                              <p className="text-sm text-blue-700">
+                                Le fichier sera automatiquement converti au format JSON lors de la création
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -398,12 +435,22 @@ const CreateAssistant = () => {
                   active={!progress.fileValidation && loading}
                 />
                 
+                {isExcelFile && (
+                  <ProgressStep
+                    icon={RefreshCwIcon}
+                    title="Conversion Excel vers JSON"
+                    description="Transformation du fichier TGI Excel en format JSON exploitable"
+                    completed={progress.excelConversion}
+                    active={progress.fileValidation && !progress.excelConversion && loading}
+                  />
+                )}
+                
                 <ProgressStep
                   icon={UploadIcon}
                   title="Création du vector store"
                   description="Indexation des données pour la recherche"
                   completed={progress.vectorStore}
-                  active={progress.fileValidation && !progress.vectorStore && loading}
+                  active={(isExcelFile ? progress.excelConversion : progress.fileValidation) && !progress.vectorStore && loading}
                 />
                 
                 <ProgressStep

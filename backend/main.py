@@ -17,6 +17,9 @@ from database import DatabaseManager
 import jwt
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from conversion import convert_tgi_to_xlsx_and_jsonl
+import tempfile
+import pandas as pd
 
 # Load environment variables from .env file (in parent directory)
 load_dotenv('../.env')
@@ -458,24 +461,72 @@ async def create_assistant(
     api_key: str = Depends(get_api_key_from_header)
 ):
     try:
-        # Validate file type
-        allowed_types = ['application/json', 'text/plain', 'application/x-ndjson']
+        # Validate file type - now including Excel files
+        allowed_types = ['application/json', 'text/plain', 'application/x-ndjson', 
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        'application/vnd.ms-excel']
         is_jsonl = file.filename.endswith('.jsonl')
+        is_excel = file.filename.endswith(('.xlsx', '.xls'))
         
-        if file.content_type not in allowed_types and not is_jsonl:
-            raise HTTPException(status_code=400, detail="Unsupported file type. Use JSON, JSONL or TXT.")
+        if file.content_type not in allowed_types and not is_jsonl and not is_excel:
+            raise HTTPException(status_code=400, detail="Unsupported file type. Use JSON, JSONL, TXT, XLS or XLSX.")
         
         # Read file content
         file_content = await file.read()
+        original_filename = file.filename
         
-        # Determine file type
-        file_type = "JSONL"
-        if file.content_type == "application/json":
-            file_type = "JSON"
-        elif file.filename.endswith('.jsonl'):
+        # Handle Excel file conversion
+        if is_excel:
+            print("📊 Détection d'un fichier Excel - Début de la conversion...")
+            
+            # Create temporary files for conversion
+            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_input:
+                temp_input.write(file_content)
+                temp_input_path = temp_input.name
+            
+            try:
+                # Generate output paths
+                base_name = os.path.splitext(original_filename)[0]
+                temp_output_jsonl = tempfile.mktemp(suffix='_converted.json')
+                
+                print("🔄 Conversion du fichier TGI Excel vers JSONL...")
+                
+                # Convert using the conversion function
+                convert_tgi_to_xlsx_and_jsonl(
+                    input_xlsx=temp_input_path,
+                    output_xlsx=None,  # We don't need the Excel output
+                    output_jsonl=temp_output_jsonl
+                )
+                
+                print("✅ Conversion terminée - Lecture du fichier JSONL...")
+                
+                # Read the converted JSONL file
+                with open(temp_output_jsonl, 'rb') as f:
+                    file_content = f.read()
+                
+                # Update filename and type for the assistant
+                original_filename = f"{base_name}_converted.json"
+                file_type = "JSON (converti depuis Excel)"
+                
+                print(f"📁 Fichier converti: {original_filename}")
+                
+            finally:
+                # Clean up temporary files
+                try:
+                    os.unlink(temp_input_path)
+                    if os.path.exists(temp_output_jsonl):
+                        os.unlink(temp_output_jsonl)
+                except:
+                    pass
+        else:
+            # Determine file type for non-Excel files
             file_type = "JSONL"
-        elif file.content_type == "text/plain" or file.filename.endswith('.txt'):
-            file_type = "TXT"
+            if file.content_type == "application/json":
+                file_type = "JSON"
+            elif file.filename.endswith('.jsonl'):
+                file_type = "JSONL"
+            elif file.content_type == "text/plain" or file.filename.endswith('.txt'):
+                file_type = "TXT"
         
         # Create universal prompt with the theme
         universal_prompt = f"""Tu es un assistant expert en analyse de données sectorielles.
@@ -500,13 +551,13 @@ Commence l'analyse dès la prochaine question utilisateur."""
         
         # Create assistant with universal prompt
         assistant_id = create_openai_assistant(
-            name, universal_prompt, file_content, file.filename, file_type, api_key
+            name, universal_prompt, file_content, original_filename, file_type, api_key
         )
         
         if assistant_id:
             # Log to database
             db.log_assistant_creation(
-                assistant_id, name, theme, user_id, file.filename, file_type
+                assistant_id, name, theme, user_id, original_filename, file_type
             )
             
             return {"message": f"Assistant '{name}' created successfully", "assistant_id": assistant_id}
